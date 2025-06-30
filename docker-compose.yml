@@ -1,0 +1,254 @@
+version: '3.8'
+
+services:
+  # N8N Automation Platform
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: judicial-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      # Database Configuration
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n_user
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      
+      # N8N Configuration
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
+      - GENERIC_TIMEZONE=America/Sao_Paulo
+      
+      # Security
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+      
+      # External modules and functions
+      - NODE_FUNCTION_ALLOW_EXTERNAL=axios,lodash,moment,crypto-js
+      - NODE_FUNCTION_ALLOW_BUILTIN=fs,path,url
+      
+      # LGPD Compliance
+      - EXECUTIONS_DATA_MAX_AGE=168  # 7 days
+      - EXECUTIONS_DATA_PRUNE=true
+      
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n-workflows:/opt/workflows
+      - ./data:/opt/data
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - judicial_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: judicial-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=n8n
+      - POSTGRES_USER=n8n_user
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_NON_ROOT_USER=n8n_user
+      - POSTGRES_NON_ROOT_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/sql/init_database.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - judicial_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n_user -d n8n"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Caching and Queue
+  redis:
+    image: redis:7-alpine
+    container_name: judicial-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - judicial_network
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Python Microservices Container
+  python-services:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.python
+    container_name: judicial-python-services
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_APPLICATION_CREDENTIALS=/opt/credentials/google-service-account.json
+      - DATAJUD_USERNAME=${DATAJUD_USERNAME}
+      - DATAJUD_PASSWORD=${DATAJUD_PASSWORD}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - POSTGRES_URL=postgresql://n8n_user:${POSTGRES_PASSWORD}@postgres:5432/n8n
+    volumes:
+      - ./scripts/python:/opt/app
+      - ./config/credentials:/opt/credentials:ro
+      - ./data:/opt/data
+      - ./monitoring/logs/python:/opt/logs
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - judicial_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: judicial-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./security/ssl_certificates:/etc/nginx/ssl:ro
+      - ./monitoring/logs/nginx:/var/log/nginx
+    depends_on:
+      - n8n
+      - python-services
+    networks:
+      - judicial_network
+
+  # Monitoring - Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: judicial-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - judicial_network
+
+  # Monitoring - Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: judicial-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000/
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - judicial_network
+
+  # Backup Service
+  backup:
+    image: postgres:15-alpine
+    container_name: judicial-backup
+    restart: "no"
+    environment:
+      - POSTGRES_DB=n8n
+      - POSTGRES_USER=n8n_user
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - PGPASSWORD=${POSTGRES_PASSWORD}
+      - N8N_USER=${N8N_USER}
+      - N8N_PASSWORD=${N8N_PASSWORD}
+    volumes:
+      - ./scripts/shell:/opt/scripts
+      - ./security/backup_policies:/opt/backups
+      - backup_data:/backups
+    depends_on:
+      - postgres
+      - n8n
+    networks:
+      - judicial_network
+    entrypoint: ["sh", "/opt/scripts/backup.sh"]
+
+  # Log Management
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.8.0
+    container_name: judicial-filebeat
+    restart: unless-stopped
+    user: root
+    volumes:
+      - ./monitoring/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./monitoring/logs:/var/log/judicial:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - n8n
+      - python-services
+    networks:
+      - judicial_network
+
+volumes:
+  n8n_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/n8n
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none  
+      o: bind
+      device: ./data/postgres
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  backup_data:
+    driver: local
+
+networks:
+  judicial_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
