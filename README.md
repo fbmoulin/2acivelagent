@@ -60,8 +60,8 @@ Este sistema automatiza todo o fluxo de análise processual judicial, desde a re
 ### 1. Clone o Repositório
 
 ```bash
-git clone https://github.com/seu-usuario/judicial-automation-system.git
-cd judicial-automation-system
+git clone https://github.com/fbmoulin/2acivelagent.git
+cd 2acivelagent
 ```
 
 ### 2. Execute o Setup Automático
