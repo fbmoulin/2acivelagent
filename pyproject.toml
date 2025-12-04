@@ -1,0 +1,162 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "judicial-automation-system"
+version = "1.0.0"
+description = "Sistema de Automacao Juridica - Brazilian Judicial Process Automation Platform"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Judicial Automation Team"}
+]
+keywords = [
+    "legal",
+    "automation",
+    "judiciary",
+    "n8n",
+    "flask",
+    "ai",
+    "brazilian-law"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Legal Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "Flask>=3.0.0",
+    "Flask-CORS>=4.0.0",
+    "Werkzeug>=3.0.1",
+    "redis>=5.0.1",
+    "psycopg2-binary>=2.9.9",
+    "SQLAlchemy>=2.0.23",
+    "openai>=1.6.1",
+    "tiktoken>=0.5.2",
+    "google-cloud-documentai>=2.22.0",
+    "google-auth>=2.25.2",
+    "google-api-python-client>=2.111.0",
+    "PyPDF2>=3.0.1",
+    "python-docx>=1.1.0",
+    "pdfplumber>=0.10.3",
+    "requests>=2.31.0",
+    "pydantic>=2.5.3",
+    "PyJWT>=2.8.0",
+    "python-dotenv>=1.0.0",
+    "prometheus-client>=0.19.0",
+    "structlog>=23.2.0",
+    "flasgger>=0.9.7.1",
+    "tenacity>=8.2.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.3",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.2",
+    "pytest-mock>=3.12.0",
+    "httpx>=0.26.0",
+    "factory-boy>=3.3.0",
+    "faker>=21.0.0",
+    "black>=23.12.1",
+    "isort>=5.13.2",
+    "flake8>=6.1.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+]
+
+monitoring = [
+    "sentry-sdk[flask]>=1.39.1",
+    "celery[redis]>=5.3.6",
+]
+
+[project.urls]
+Homepage = "https://github.com/fbmoulin/2acivelagent"
+Documentation = "https://github.com/fbmoulin/2acivelagent#readme"
+Repository = "https://github.com/fbmoulin/2acivelagent.git"
+Issues = "https://github.com/fbmoulin/2acivelagent/issues"
+
+[project.scripts]
+judicial-api = "scripts.python.app:app.run"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["scripts*"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | migrations
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["scripts"]
+skip = [".venv", "migrations"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+exclude = [
+    "tests/",
+    "migrations/",
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --cov=scripts --cov-report=term-missing --cov-report=html"
+testpaths = [
+    "tests",
+]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["scripts"]
+branch = true
+omit = [
+    "tests/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
