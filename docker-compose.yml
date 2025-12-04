@@ -66,8 +66,10 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/sql/init_database.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "5432:5432"
+    # SECURITY: Port NOT exposed to host - only accessible within Docker network
+    # For local development access, use: docker exec -it judicial-postgres psql -U n8n_user -d n8n
+    expose:
+      - "5432"
     networks:
       - judicial_network
     healthcheck:
@@ -83,8 +85,10 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
-    ports:
-      - "6379:6379"
+    # SECURITY: Port NOT exposed to host - only accessible within Docker network
+    # For local development access, use: docker exec -it judicial-redis redis-cli
+    expose:
+      - "6379"
     networks:
       - judicial_network
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
@@ -101,8 +105,9 @@ services:
       dockerfile: infrastructure/docker/Dockerfile.python
     container_name: judicial-python-services
     restart: unless-stopped
-    ports:
-      - "5000:5000"
+    # SECURITY: Port NOT exposed to host - only accessible through nginx reverse proxy
+    expose:
+      - "5000"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GOOGLE_APPLICATION_CREDENTIALS=/opt/credentials/google-service-account.json
@@ -149,8 +154,9 @@ services:
     image: prom/prometheus:latest
     container_name: judicial-prometheus
     restart: unless-stopped
-    ports:
-      - "9090:9090"
+    # SECURITY: Port NOT exposed to host - accessible only by Grafana within Docker network
+    expose:
+      - "9090"
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus

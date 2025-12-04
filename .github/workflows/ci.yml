@@ -54,7 +54,10 @@ jobs:
           flake8 scripts/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=100 --statistics
 
       - name: Type check with mypy
-        run: mypy scripts/ --ignore-missing-imports --no-error-summary || true
+        run: |
+          # Type checking - warnings only for now, will be enforced incrementally
+          mypy scripts/ --ignore-missing-imports --no-error-summary --warn-return-any || echo "::warning::Type checking found issues - please review"
+        continue-on-error: true
 
   # ===========================================
   # Unit Tests
@@ -232,10 +235,24 @@ jobs:
           pip install bandit safety
 
       - name: Run Bandit security scan
-        run: bandit -r scripts/ -ll -ii -x tests/ || true
+        run: |
+          # SECURITY: Fail on medium or higher severity issues
+          # -ll: Report medium and higher severity
+          # -ii: Report medium and higher confidence
+          bandit -r scripts/ -ll -ii -x tests/ -f json -o bandit-report.json
+          bandit -r scripts/ -ll -ii -x tests/
+
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-security-report
+          path: bandit-report.json
 
       - name: Check dependencies for vulnerabilities
-        run: safety check -r requirements.txt --full-report || true
+        run: |
+          # SECURITY: Fail if known vulnerabilities found in dependencies
+          safety check -r requirements.txt --full-report
 
   # ===========================================
   # Docker Build Test
@@ -277,8 +294,13 @@ jobs:
         run: |
           if [[ "${{ needs.lint.result }}" == "failure" ]] || \
              [[ "${{ needs.test-unit.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-integration.result }}" == "failure" ]]; then
+             [[ "${{ needs.test-integration.result }}" == "failure" ]] || \
+             [[ "${{ needs.security.result }}" == "failure" ]]; then
             echo "CI Pipeline failed"
+            echo "Lint: ${{ needs.lint.result }}"
+            echo "Unit Tests: ${{ needs.test-unit.result }}"
+            echo "Integration Tests: ${{ needs.test-integration.result }}"
+            echo "Security Scan: ${{ needs.security.result }}"
             exit 1
           fi
-          echo "CI Pipeline succeeded"
+          echo "CI Pipeline succeeded - all checks passed"

@@ -30,17 +30,28 @@ target_metadata = Base.metadata
 
 
 def get_url():
-    """Get database URL from environment or config."""
+    """Get database URL from environment variables.
+
+    Raises:
+        RuntimeError: If required database credentials are not configured.
+    """
+    # Try full URL first
     url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL")
     if url:
         return url
 
-    # Build URL from individual components
+    # Build URL from individual components - password is REQUIRED
+    password = os.getenv("POSTGRES_PASSWORD")
+    if not password:
+        raise RuntimeError(
+            "Database credentials not configured. "
+            "Set DATABASE_URL or POSTGRES_PASSWORD environment variable."
+        )
+
     host = os.getenv("POSTGRES_HOST", "localhost")
     port = os.getenv("POSTGRES_PORT", "5432")
     db = os.getenv("POSTGRES_DB", "n8n")
     user = os.getenv("POSTGRES_USER", "n8n_user")
-    password = os.getenv("POSTGRES_PASSWORD", "password")
 
     return f"postgresql://{user}:{password}@{host}:{port}/{db}"
 
