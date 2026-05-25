@@ -375,14 +375,16 @@ Responda em formato JSON."""
 
         try:
             response = openai.ChatCompletion.create(
-                model=Config.OPENAI_MODEL,
+            from openai import OpenAI
+            client = OpenAI()
+            response = client.chat.completions.create(
+                model="gpt-4",
                 messages=[
-                    {"role": "system", "content": cls.SYSTEM_PROMPT},
+                    {"role": "system", "content": "Voce e um especialista em analise juridica brasileira."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=Config.OPENAI_MAX_TOKENS,
-                temperature=0.3,
-                request_timeout=Config.OPENAI_TIMEOUT
+                max_tokens=2000,
+                temperature=0.3
             )
 
             return {
