@@ -575,14 +575,16 @@ Gere o documento completo e formatado."""
 
         try:
             response = openai.ChatCompletion.create(
-                model=Config.OPENAI_MODEL,
+            from openai import OpenAI
+            client = OpenAI()
+            response = client.chat.completions.create(
+                model="gpt-4",
                 messages=[
-                    {"role": "system", "content": cls.SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt}
+                    {"role": "system", "content": "Voce e um magistrado especialista em redacao de pecas judiciais."},
+                    {"role": "user", "content": prompts[document_type]}
                 ],
                 max_tokens=3000,
-                temperature=0.3,
-                request_timeout=Config.OPENAI_TIMEOUT
+                temperature=0.3
             )
 
             return {
