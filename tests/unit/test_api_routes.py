@@ -131,7 +131,7 @@ class TestFIRACAnalysisEndpoint:
         assert 'short' in data['error'].lower() or 'minimum' in data['error'].lower()
 
     @pytest.mark.unit
-    @patch('scripts.python.app.openai.ChatCompletion.create')
+    @patch('scripts.python.app.openai_client.chat.completions.create')
     def test_firac_calls_openai(self, mock_openai, client, sample_legal_text, mock_openai_response):
         """Test that OpenAI is called for analysis"""
         mock_openai.return_value = mock_openai_response
@@ -143,7 +143,7 @@ class TestFIRACAnalysisEndpoint:
         mock_openai.assert_called_once()
 
     @pytest.mark.unit
-    @patch('scripts.python.app.openai.ChatCompletion.create')
+    @patch('scripts.python.app.openai_client.chat.completions.create')
     def test_firac_returns_analysis(self, mock_openai, client, sample_legal_text, mock_openai_response):
         """Test that FIRAC analysis is returned"""
         mock_openai.return_value = mock_openai_response
@@ -230,7 +230,7 @@ class TestDistinguishAnalysisEndpoint:
         assert response.status_code == 400
 
     @pytest.mark.unit
-    @patch('scripts.python.app.openai.ChatCompletion.create')
+    @patch('scripts.python.app.openai_client.chat.completions.create')
     def test_distinguish_returns_analysis(self, mock_openai, client, sample_legal_text,
                                           sample_precedent_data, mock_openai_response):
         """Test that distinguish analysis is returned"""
@@ -270,7 +270,7 @@ class TestGenerateDocumentEndpoint:
         assert response.status_code == 400
 
     @pytest.mark.unit
-    @patch('scripts.python.app.openai.ChatCompletion.create')
+    @patch('scripts.python.app.openai_client.chat.completions.create')
     def test_generate_sentenca(self, mock_openai, client, sample_case_data):
         """Test generating sentenca document"""
         mock_response = Mock()
@@ -290,7 +290,7 @@ class TestGenerateDocumentEndpoint:
         assert data['document_type'] == 'sentenca'
 
     @pytest.mark.unit
-    @patch('scripts.python.app.openai.ChatCompletion.create')
+    @patch('scripts.python.app.openai_client.chat.completions.create')
     def test_generate_despacho(self, mock_openai, client, sample_case_data):
         """Test generating despacho document"""
         mock_response = Mock()

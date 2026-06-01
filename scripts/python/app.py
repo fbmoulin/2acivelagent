@@ -26,6 +26,7 @@ from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 import redis
 import openai
+from openai import OpenAI
 import requests
 from requests.exceptions import RequestException, Timeout
 import jwt
@@ -133,6 +134,9 @@ if Config.OPENAI_API_KEY:
 # =============================================================================
 # REDIS CONNECTION
 # =============================================================================
+
+# OpenAI client instance
+openai_client = OpenAI(api_key=Config.OPENAI_API_KEY) if Config.OPENAI_API_KEY else None
 
 redis_client: Optional[redis.Redis] = None
 try:
@@ -357,6 +361,13 @@ Responda sempre em formato JSON estruturado."""
     @classmethod
     def analyze(cls, text: str) -> Dict[str, Any]:
         """Analyze text using FIRAC methodology."""
+        # Check if OpenAI client is available
+        if openai_client is None:
+            raise RuntimeError(
+                "OpenAI API key not configured. Please set OPENAI_API_KEY environment variable. "
+                "See Config.validate() for configuration requirements."
+            )
+
         # Truncate text to safe limit
         safe_text = text[:3000]
 
@@ -374,10 +385,7 @@ Forneca uma analise estruturada com os campos:
 Responda em formato JSON."""
 
         try:
-            response = openai.ChatCompletion.create(
-            from openai import OpenAI
-            client = OpenAI()
-            response = client.chat.completions.create(
+            response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "Voce e um especialista em analise juridica brasileira."},
@@ -390,17 +398,17 @@ Responda em formato JSON."""
             return {
                 "success": True,
                 "firac_analysis": response.choices[0].message.content,
-                "model": Config.OPENAI_MODEL,
+                "analysis_type": "auto-detect",
                 "timestamp": datetime.now().isoformat()
             }
 
-        except openai.error.RateLimitError:
+        except openai.RateLimitError:
             logger.warning("OpenAI rate limit exceeded")
             return {"success": False, "error": "Service temporarily unavailable, please retry"}
-        except openai.error.AuthenticationError:
+        except openai.AuthenticationError:
             logger.error("OpenAI authentication failed")
             return {"success": False, "error": "Service configuration error"}
-        except openai.error.Timeout:
+        except openai.APITimeoutError:
             logger.warning("OpenAI request timeout")
             return {"success": False, "error": "Analysis timeout, please retry"}
         except Exception as e:
@@ -496,6 +504,13 @@ Responda sempre em formato JSON estruturado."""
     @classmethod
     def analyze(cls, current_facts: str, precedent_data: Dict) -> Dict[str, Any]:
         """Analyze if precedent applies to current facts."""
+        # Check if OpenAI client is available
+        if openai_client is None:
+            raise RuntimeError(
+                "OpenAI API key not configured. Please set OPENAI_API_KEY environment variable. "
+                "See Config.validate() for configuration requirements."
+            )
+
         # Sanitize inputs
         safe_facts, facts_safe = InputValidator.sanitize_text(current_facts, max_length=2000)
 
@@ -520,10 +535,7 @@ Responda em JSON com os campos:
 - recomendacao: texto com recomendacao fundamentada"""
 
         try:
-            response = openai.ChatCompletion.create(
-            from openai import OpenAI
-            client = OpenAI()
-            response = client.chat.completions.create(
+            response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "Voce e um magistrado especialista em analise de precedentes e distinguish."},
@@ -559,6 +571,13 @@ Gere documentos profissionais e tecnicamente corretos."""
     @classmethod
     def generate(cls, document_type: str, case_data: Dict) -> Dict[str, Any]:
         """Generate legal document."""
+        # Check if OpenAI client is available
+        if openai_client is None:
+            raise RuntimeError(
+                "OpenAI API key not configured. Please set OPENAI_API_KEY environment variable. "
+                "See Config.validate() for configuration requirements."
+            )
+
         valid, error = InputValidator.validate_document_type(document_type)
         if not valid:
             return {"success": False, "error": error}
@@ -574,14 +593,11 @@ Dados do caso:
 Gere o documento completo e formatado."""
 
         try:
-            response = openai.ChatCompletion.create(
-            from openai import OpenAI
-            client = OpenAI()
-            response = client.chat.completions.create(
+            response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "Voce e um magistrado especialista em redacao de pecas judiciais."},
-                    {"role": "user", "content": prompts[document_type]}
+                    {"role": "user", "content": prompt}
                 ],
                 max_tokens=3000,
                 temperature=0.3
@@ -653,7 +669,12 @@ def health_check():
     return jsonify({
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "services": {
+            "redis": redis_client is not None,
+            "openai": bool(Config.OPENAI_API_KEY),
+            "datajud": bool(Config.DATAJUD_USERNAME)
+        }
     })
 
 
@@ -919,4 +940,4 @@ if __name__ == '__main__':
 
     # IMPORTANT: In production, use a proper WSGI server like Gunicorn
     # gunicorn -w 4 -b 0.0.0.0:5000 app:app
-    app.run(host='127.0.0.1', port=5000)
+    app.run(host='0.0.0.0', port=5000)
