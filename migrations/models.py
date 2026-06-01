@@ -5,10 +5,9 @@ Database models for ORM and migration support.
 """
 
 from datetime import datetime
-from typing import Optional, List
 from sqlalchemy import (
-    Column, String, Integer, Text, Boolean, DateTime, Float,
-    ForeignKey, JSON, ARRAY, BigInteger, Index, UniqueConstraint,
+    Column, String, Integer, Text, Boolean, DateTime,
+    ForeignKey, JSON, ARRAY, BigInteger, Index,
     Numeric, Enum as SQLEnum
 )
 from sqlalchemy.dialects.postgresql import UUID, INET, JSONB
