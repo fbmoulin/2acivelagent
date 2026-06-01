@@ -294,7 +294,7 @@ class TestGenerateDocumentEndpoint:
     def test_generate_despacho(self, mock_openai, client, sample_case_data):
         """Test generating despacho document"""
         mock_response = Mock()
-
+        mock_response.choices = [Mock(message=Mock(content="Generated despacho content"))]
         mock_openai.return_value = mock_response
 
         response = client.post('/generate-document',

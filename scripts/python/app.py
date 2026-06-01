@@ -361,6 +361,13 @@ Responda sempre em formato JSON estruturado."""
     @classmethod
     def analyze(cls, text: str) -> Dict[str, Any]:
         """Analyze text using FIRAC methodology."""
+        # Check if OpenAI client is available
+        if openai_client is None:
+            raise RuntimeError(
+                "OpenAI API key not configured. Please set OPENAI_API_KEY environment variable. "
+                "See Config.validate() for configuration requirements."
+            )
+
         # Truncate text to safe limit
         safe_text = text[:3000]
 
@@ -497,6 +504,13 @@ Responda sempre em formato JSON estruturado."""
     @classmethod
     def analyze(cls, current_facts: str, precedent_data: Dict) -> Dict[str, Any]:
         """Analyze if precedent applies to current facts."""
+        # Check if OpenAI client is available
+        if openai_client is None:
+            raise RuntimeError(
+                "OpenAI API key not configured. Please set OPENAI_API_KEY environment variable. "
+                "See Config.validate() for configuration requirements."
+            )
+
         # Sanitize inputs
         safe_facts, facts_safe = InputValidator.sanitize_text(current_facts, max_length=2000)
 
@@ -557,6 +571,13 @@ Gere documentos profissionais e tecnicamente corretos."""
     @classmethod
     def generate(cls, document_type: str, case_data: Dict) -> Dict[str, Any]:
         """Generate legal document."""
+        # Check if OpenAI client is available
+        if openai_client is None:
+            raise RuntimeError(
+                "OpenAI API key not configured. Please set OPENAI_API_KEY environment variable. "
+                "See Config.validate() for configuration requirements."
+            )
+
         valid, error = InputValidator.validate_document_type(document_type)
         if not valid:
             return {"success": False, "error": error}
