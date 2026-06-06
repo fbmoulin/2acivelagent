@@ -1,0 +1,505 @@
+openapi: 3.1.0
+info:
+  title: Sistema de Automacao Juridica API
+  description: |
+    API para automacao de processos judiciais brasileiros.
+
+    Esta API fornece endpoints para:
+    - Extracao de texto de documentos PDF
+    - Analise juridica usando metodologia FIRAC
+    - Pesquisa de jurisprudencia no DATAJUD (CNJ)
+    - Analise de distinguish entre precedentes
+    - Geracao automatica de documentos juridicos
+
+    ## Autenticacao
+    A API utiliza autenticacao JWT para endpoints protegidos.
+    Inclua o token no header `Authorization: Bearer <token>`.
+
+    ## Rate Limiting
+    - API: 10 requisicoes por segundo
+    - Webhooks: 5 requisicoes por segundo
+
+    ## LGPD
+    Esta API esta em conformidade com a LGPD.
+    Dados de execucao sao retidos por no maximo 7 dias.
+  version: 1.0.0
+  contact:
+    name: Suporte Tecnico
+    email: suporte@judicial-automation.com.br
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5000
+    description: Desenvolvimento local
+  - url: https://api.staging.judicial-automation.com.br
+    description: Ambiente de staging
+  - url: https://api.judicial-automation.com.br
+    description: Producao
+
+tags:
+  - name: Health
+    description: Verificacao de saude da API
+  - name: Documents
+    description: Processamento de documentos
+  - name: Analysis
+    description: Analise juridica
+  - name: Search
+    description: Pesquisa de jurisprudencia
+  - name: Generation
+    description: Geracao de documentos
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Verificacao de saude
+      description: Retorna o status de saude da API e seus servicos dependentes.
+      operationId: healthCheck
+      responses:
+        '200':
+          description: API funcionando corretamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: healthy
+                timestamp: '2024-01-15T10:30:00.000Z'
+                version: '1.0.0'
+                services:
+                  redis: true
+                  openai: true
+                  datajud: true
+
+  /extract-pdf:
+    post:
+      tags:
+        - Documents
+      summary: Extrair texto de PDF
+      description: |
+        Extrai o texto de um documento PDF usando PyPDF2.
+        O conteudo do PDF deve ser enviado em formato base64.
+      operationId: extractPdf
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtractPDFRequest'
+            example:
+              pdf_content: 'JVBERi0xLjQK...'
+      responses:
+        '200':
+          description: Texto extraido com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractPDFResponse'
+              example:
+                success: true
+                text: 'PROCESSO: 1234567-89.2023.8.26.0100...'
+                pages: 5
+                metadata:
+                  extracted_at: '2024-01-15T10:30:00.000Z'
+                  method: PyPDF2
+        '400':
+          description: Requisicao invalida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /firac-analysis:
+    post:
+      tags:
+        - Analysis
+      summary: Analise FIRAC
+      description: |
+        Realiza analise juridica usando a metodologia FIRAC:
+        - **F**atos: Identifica os fatos principais do caso
+        - **I**ssues: Questoes juridicas envolvidas
+        - **R**egras: Normas juridicas aplicaveis
+        - **A**nalise: Aplicacao das regras aos fatos
+        - **C**onclusao: Conclusao juridica
+
+        Utiliza GPT-4 para analise automatizada.
+      operationId: firacAnalysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FIRACRequest'
+            example:
+              text: 'O autor alega que celebrou contrato de prestacao de servicos...'
+      responses:
+        '200':
+          description: Analise realizada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FIRACResponse'
+        '400':
+          description: Texto muito curto ou invalido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro na analise (ex: falha OpenAI)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /datajud-search:
+    post:
+      tags:
+        - Search
+      summary: Pesquisar jurisprudencia no DATAJUD
+      description: |
+        Realiza busca de jurisprudencia na API publica do DATAJUD (CNJ).
+        Suporta pesquisa por tribunal, classe processual, orgao julgador e texto livre.
+
+        ## Tribunais suportados
+        - tjsp, tjrj, tjmg, tjrs, tjpr, tjsc, tjba, tjpe, tjce, tjgo
+        - trf1, trf2, trf3, trf4, trf5
+        - tst, stj, stf
+      operationId: datajudSearch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DatajudSearchRequest'
+            example:
+              tribunal: tjsp
+              classe_codigo: 1116
+              texto_livre: execucao fiscal
+              size: 50
+      responses:
+        '200':
+          description: Busca realizada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatajudSearchResponse'
+        '400':
+          description: Parametros invalidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro na comunicacao com DATAJUD
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /distinguish-analysis:
+    post:
+      tags:
+        - Analysis
+      summary: Analise de distinguish
+      description: |
+        Compara os fatos do caso atual com um precedente judicial
+        para determinar se o precedente se aplica (distinguish).
+
+        A analise inclui:
+        - Verificacao de aplicabilidade
+        - Identificacao de semelhancas
+        - Identificacao de diferencas relevantes
+        - Recomendacao fundamentada
+      operationId: distinguishAnalysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DistinguishRequest'
+      responses:
+        '200':
+          description: Analise de distinguish realizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DistinguishResponse'
+        '400':
+          description: Dados obrigatorios faltando
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro na analise
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /generate-document:
+    post:
+      tags:
+        - Generation
+      summary: Gerar documento juridico
+      description: |
+        Gera automaticamente documentos juridicos usando GPT-4.
+
+        ## Tipos de documento suportados
+        - `sentenca`: Sentenca judicial completa
+        - `despacho`: Despacho de mero expediente
+        - `decisao`: Decisao interlocutoria
+      operationId: generateDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateDocumentRequest'
+            example:
+              document_type: sentenca
+              case_data:
+                case_number: '1234567-89.2023.8.26.0100'
+                plaintiff: Joao da Silva
+                defendant: Empresa XYZ Ltda
+                claim_type: Cobranca
+                claim_amount: 30000.00
+      responses:
+        '200':
+          description: Documento gerado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateDocumentResponse'
+        '400':
+          description: Tipo de documento invalido ou dados faltando
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro na geracao do documento
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          description: Status geral da API
+        timestamp:
+          type: string
+          format: date-time
+          description: Data/hora da verificacao
+        version:
+          type: string
+          description: Versao da API
+        services:
+          type: object
+          properties:
+            redis:
+              type: boolean
+              description: Status do Redis
+            openai:
+              type: boolean
+              description: Status da conexao OpenAI
+            datajud:
+              type: boolean
+              description: Status das credenciais DATAJUD
+
+    ExtractPDFRequest:
+      type: object
+      required:
+        - pdf_content
+      properties:
+        pdf_content:
+          type: string
+          format: byte
+          description: Conteudo do PDF em base64
+
+    ExtractPDFResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        text:
+          type: string
+          description: Texto extraido do PDF
+        pages:
+          type: integer
+          description: Numero de paginas
+        metadata:
+          type: object
+          properties:
+            extracted_at:
+              type: string
+              format: date-time
+            method:
+              type: string
+
+    FIRACRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          minLength: 50
+          description: Texto juridico para analise (minimo 50 caracteres)
+
+    FIRACResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        firac_analysis:
+          type: string
+          description: Analise FIRAC em formato JSON
+        analysis_type:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    DatajudSearchRequest:
+      type: object
+      properties:
+        tribunal:
+          type: string
+          default: tjsp
+          description: Sigla do tribunal (tjsp, tjrj, trf1, etc.)
+        classe_codigo:
+          type: integer
+          description: Codigo da classe processual
+        orgao_julgador:
+          type: string
+          description: Codigo do orgao julgador
+        texto_livre:
+          type: string
+          description: Texto para busca livre
+        size:
+          type: integer
+          default: 50
+          maximum: 100
+          description: Numero maximo de resultados
+
+    DatajudSearchResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          description: Resposta bruta do Elasticsearch
+        tribunal:
+          type: string
+        total_results:
+          type: integer
+
+    DistinguishRequest:
+      type: object
+      required:
+        - current_facts
+        - precedent_data
+      properties:
+        current_facts:
+          type: string
+          description: Fatos do caso atual
+        precedent_data:
+          type: object
+          description: Dados do precedente para comparacao
+
+    DistinguishResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        distinguish_analysis:
+          type: string
+          description: Analise de distinguish em JSON
+        applicable:
+          type: boolean
+          description: Se o precedente e aplicavel
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        timestamp:
+          type: string
+          format: date-time
+
+    GenerateDocumentRequest:
+      type: object
+      required:
+        - document_type
+        - case_data
+      properties:
+        document_type:
+          type: string
+          enum: [sentenca, despacho, decisao]
+          description: Tipo de documento a gerar
+        case_data:
+          type: object
+          description: Dados do caso para geracao
+          properties:
+            case_number:
+              type: string
+            plaintiff:
+              type: string
+            defendant:
+              type: string
+            claim_type:
+              type: string
+            claim_amount:
+              type: number
+
+    GenerateDocumentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        document_type:
+          type: string
+        generated_text:
+          type: string
+          description: Documento gerado
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Mensagem de erro
+        details:
+          type: string
+          description: Detalhes adicionais (opcional)
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT para autenticacao
+
+security:
+  - bearerAuth: []

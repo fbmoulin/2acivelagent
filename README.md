@@ -154,10 +154,25 @@ Compara precedentes com fatos do caso atual para determinar aplicabilidade.
 
 ## 🔌 APIs Disponíveis
 
+> **Nota**: Todas as APIs requerem autenticação JWT. Inclua o header `Authorization: Bearer <token>` em todas as requisições.
+
+### Obter Token JWT
+```bash
+POST /auth/token
+Content-Type: application/json
+
+{
+  "api_key": "your_api_key"
+}
+
+# Response: {"token": "eyJ...", "expires_in": 86400}
+```
+
 ### Extração de PDF
 ```bash
 POST /extract-pdf
 Content-Type: application/json
+Authorization: Bearer <token>
 
 {
   "pdf_content": "base64_encoded_pdf"
@@ -168,6 +183,7 @@ Content-Type: application/json
 ```bash
 POST /firac-analysis
 Content-Type: application/json
+Authorization: Bearer <token>
 
 {
   "text": "texto_do_processo_judicial"
@@ -178,6 +194,7 @@ Content-Type: application/json
 ```bash
 POST /datajud-search
 Content-Type: application/json
+Authorization: Bearer <token>
 
 {
   "tribunal": "tjsp",
@@ -190,6 +207,7 @@ Content-Type: application/json
 ```bash
 POST /distinguish-analysis
 Content-Type: application/json
+Authorization: Bearer <token>
 
 {
   "current_facts": "fatos_do_caso_atual",
@@ -201,6 +219,7 @@ Content-Type: application/json
 ```bash
 POST /generate-document
 Content-Type: application/json
+Authorization: Bearer <token>
 
 {
   "document_type": "sentenca",
@@ -212,11 +231,47 @@ Content-Type: application/json
 
 ### Medidas de Segurança Implementadas
 
-- **Autenticação**: Básica no N8N + JWT nas APIs
+- **Autenticação JWT**: Todas as APIs protegidas com tokens JWT
+- **Proteção contra Prompt Injection**: Validação de entrada com detecção de padrões maliciosos
+- **CORS Restritivo**: Apenas origens autorizadas podem acessar as APIs
 - **Criptografia**: SSL/TLS para todas as comunicações
-- **Isolamento**: Containers Docker em rede privada
-- **Backup**: Automático com retenção configurável
-- **Logs**: Auditoria completa de todas as operações
+- **Rede Isolada**: Serviços internos (PostgreSQL, Redis) não expostos externamente
+- **Validação de Entrada**: Limites de tamanho e sanitização de dados
+- **Tratamento de Erros Seguro**: Sem exposição de stack traces ou informações sensíveis
+- **Auditoria**: Request ID tracking para rastreabilidade
+- **CI/CD com Security Scans**: Bandit e Safety executados em cada push
+
+### Segurança de Infraestrutura
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     INTERNET                                 │
+└─────────────────────────┬───────────────────────────────────┘
+                          │ HTTPS (443)
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     NGINX (Reverse Proxy)                   │
+│              Rate Limiting, SSL Termination                 │
+└─────────────────────────┬───────────────────────────────────┘
+                          │ Internal Network Only
+          ┌───────────────┼───────────────┐
+          ▼               ▼               ▼
+     ┌─────────┐    ┌─────────┐    ┌─────────┐
+     │   N8N   │    │ Python  │    │ Grafana │
+     │  :5678  │    │  :5000  │    │  :3000  │
+     └────┬────┘    └────┬────┘    └─────────┘
+          │              │
+          └──────┬───────┘
+                 ▼
+     ┌─────────────────────────────────────┐
+     │        Internal Docker Network       │
+     │  ┌──────────┐    ┌──────────┐       │
+     │  │PostgreSQL│    │  Redis   │       │
+     │  │  :5432   │    │  :6379   │       │
+     │  └──────────┘    └──────────┘       │
+     │     NOT EXPOSED TO HOST             │
+     └─────────────────────────────────────┘
+```
 
 ### Compliance LGPD
 
@@ -225,6 +280,7 @@ Content-Type: application/json
 - **Retenção**: Configurável via `EXECUTIONS_DATA_MAX_AGE`
 - **Exclusão**: Scripts automáticos de limpeza
 - **Pseudonimização**: Dados sensíveis são mascarados
+- **Consentimento**: Workflow de consentimento integrado
 
 ## 📈 Monitoramento
 
